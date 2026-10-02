@@ -1,0 +1,136 @@
+############################################################
+# GGPlot2 Teaching Script: Mean, Error Bars, and CV Gradient
+############################################################
+
+# Load necessary libraries
+library(ggplot2)
+# ggplot2 is an R package for creating visualizations. It’s based on the “Grammar of Graphics,” which means you can build plots layer by layer.
+
+library(dplyr)
+# dplyr is an R package for data manipulation. It makes it easier to summarize, filter, and transform datasets before plotting.
+
+# Assign the dataset to a variable for clarity
+# → 'data' points to the same source file
+data <- Aggrivoltaic.updated...1
+
+# Create x vector (replicate labels)
+# → Each value in the original columns gets a label: "rep1", "rep2", or "rep3"
+x <- c(
+  rep("rep1", length(data$Rep1.Potatoes.Marketable.Weight)),
+  rep("rep2", length(data$Rep2.Potatoes.Marketable.Weight)),
+  rep("rep3", length(data$Rep3.Potatoes.Marketable.Weight))
+)
+
+# Create y vector (numeric values)
+# → Stacks all weights from Rep1, Rep2, Rep3 in the same order as x
+y <- c(
+  data$Rep1.Potatoes.Marketable.Weight,
+  data$Rep2.Potatoes.Marketable.Weight,
+  data$Rep3.Potatoes.Marketable.Weight
+)
+
+# Combine x and y into a tidy data frame
+df <- data.frame(
+  Replicate = x,  # Labels
+  Weight = y      # Corresponding values
+)
+
+# Quick check (optional)
+head(df)           # Shows first few rows
+table(df$Replicate) # Shows counts per replicate
+
+# Summarize data: calculate mean, SD, and CV for each replicate
+summary_df <- df %>%
+  group_by(Replicate) %>%
+  summarise(
+    mean_weight = mean(Weight, na.rm = TRUE),       # Mean of weights
+    sd_weight = sd(Weight, na.rm = TRUE),          # Standard deviation
+    cv = (sd_weight / mean_weight) * 100           # Coefficient of variation (%)
+  )
+
+# Build the ggplot
+ggplot(summary_df, aes(
+         x = reorder(Replicate, mean_weight),  # Order bars by mean weight
+         y = mean_weight,                      # Bar height = mean weight
+         fill = cv                             # Color = CV
+       )) +
+  geom_col(position = position_dodge(width = 0.8)) +         # Bars
+  geom_errorbar(aes(ymin = mean_weight - sd_weight,          # Error bars
+                    ymax = mean_weight + sd_weight),
+                width = 0.2, color = "black") +
+  geom_text(aes(label = paste0("CV=", round(cv, 1), "%")),  # Show CV above bars
+            vjust = -0.5, size = 3.5) +
+  scale_fill_gradient(low = "green", high = "red") +        # Gradient by CV
+  ylab("Mean Marketable Weight (lbs)") +
+  xlab("Replicate") +
+  ggtitle("Marketable Yield by Replicate with CV and Error Bars") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),      # Rotate x-axis labels
+    plot.margin = margin(1, 1, 1, 1, "cm")                  # Add margins
+  )
+
+############################################################
+# EXPLANATION
+############################################################
+
+# 1. data <- Aggrivoltaic.updated...1
+#    → Assigns the original dataset to 'data' for clarity and reuse.
+
+# 2. x vector
+#    → Labels each value with its replicate: "rep1", "rep2", or "rep3"
+#    → Uses rep() to repeat the label for the number of rows in that replicate
+
+# 3. y vector
+#    → Contains the actual numeric weights
+#    → Matches the order of x so each label corresponds to the correct value
+
+# 4. df data frame
+#    → Combines x and y into a tidy structure
+#    → Each row has one weight and its replicate label
+
+# 5. summary_df
+#    → Calculates mean, SD, and CV for each replicate
+#    → This prepares the data for plotting summary statistics
+
+# 6. ggplot layers
+
+# geom_col(): Bar plot with mean weights
+# Purpose: Plot bars with heights directly from y-values (mean_weight)
+# Note: geom_col() uses provided y-values; geom_bar() counts observations automatically
+# position_dodge() ensures multiple groups per x are side by side rather than stacked
+# ggplot(summary_stats, aes(x = Crop, y = mean_weight, fill = cv)) +
+#  geom_col(position = position_dodge(width = 0.8)) +  # dodge bars side by side
+
+# geom_errorbar(): adds SD error bars
+# ymin = mean - SD, ymax = mean + SD
+# width = width of horizontal cap
+# color = color of the error bars
+# geom_errorbar(aes(ymin = mean_weight - sd_weight,
+#                   ymax = mean_weight + sd_weight),
+#               width = 0.2,
+#               color = "black") +
+
+# geom_text: Add labels above bars
+# label = paste0("CV=", round(cv, 1), "%")
+# vjust = vertical adjustment (negative moves text above bar)
+# size = font size
+# geom_text(aes(label = paste0("CV=", round(cv, 1), "%")),
+#           vjust = -0.5,
+#           size = 3.5,
+#           position = position_dodge(width = 0.8)) +  # align with dodged bars
+
+# scale_fill_gradient: Color bars by CV
+# low = color for lowest CV (green = consistent)
+# high = color for highest CV (red = more variable)
+# scale_fill_gradient(low = "green", high = "red") +
+
+# theme_minimal() + theme(): Clean appearance & customize
+# theme_minimal(): simple background, removes clutter
+# axis.text.x: rotate x-axis labels for readability
+# plot.margin: add space so text/labels are not cut off
+# theme_minimal() +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+#        plot.margin = margin(1, 1, 1, 1, "cm"))
+
+

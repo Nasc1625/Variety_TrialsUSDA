@@ -1,0 +1,88 @@
+############################################################
+# GGPlot2 Teaching Script: Mean, Error Bars, and CV Gradient
+# → Students can replace 'data' and column names with their own
+############################################################
+
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# -------------------------------
+# Step 1: Assign your dataset
+# -------------------------------
+# Replace 'YOUR_DATA_FRAME' with your dataset
+data <- YOUR_DATA_FRAME
+
+# -------------------------------
+# Step 2: Create x vector (replicate or group labels)
+# -------------------------------
+x <- c(
+  rep("YOUR_CHOSEN_NAME1", length(data$YOUR_COLUMN1)),
+  rep("YOUR_CHOSEN_NAME2", length(data$YOUR_COLUMN2)),
+  rep("YOUR_CHOSEN_NAME3", length(data$YOUR_COLUMN3))
+)
+
+# -------------------------------
+# Step 3: Create y vector (numeric values)
+# -------------------------------
+y <- c(
+  data$YOUR_COLUMN1,
+  data$YOUR_COLUMN2,
+  data$YOUR_COLUMN3
+)
+
+# -------------------------------
+# Step 4: Combine into tidy data frame
+# -------------------------------
+df <- data.frame(
+  Replicate = x,
+  Value = y
+)
+
+# Quick checks
+head(df)           
+table(df$Replicate) 
+
+# -------------------------------
+# Step 5: Summarize data
+# -------------------------------
+summary_df <- df %>%
+  group_by(Replicate) %>%
+  summarise(
+    mean_value = mean(Value, na.rm = TRUE),       # Mean of values
+    sd_value = sd(Value, na.rm = TRUE),           # Standard deviation
+    cv = (sd_value / mean_value) * 100            # Coefficient of variation (%)
+  )
+
+# -------------------------------
+# Step 6: Build the ggplot
+# -------------------------------
+ggplot(summary_df, aes(
+         x = reorder(Replicate, mean_value),  # Order bars by mean
+         y = mean_value,                       # Bar height = mean
+         fill = cv                              # Color = CV
+       )) +
+  geom_col(position = position_dodge(width = 0.8)) +        # Bars
+  geom_errorbar(aes(ymin = mean_value - sd_value,           # Error bars
+                    ymax = mean_value + sd_value),
+                width = 0.2, color = "black") +
+  geom_text(aes(label = paste0("CV=", round(cv, 1), "%")), # Show CV above bars
+            vjust = -0.5, size = 3.5) +
+  scale_fill_gradient(low = "green", high = "red") +       # Gradient by CV
+  ylab("Mean Value") +
+  xlab("Replicate/Group") +
+  ggtitle("Bar Plot with Mean, CV, and Error Bars") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),     # Rotate x-axis labels
+    plot.margin = margin(1, 1, 1, 1, "cm")                 # Add margins
+  )
+
+# -------------------------------
+# Tips:
+# -------------------------------
+# 1. Change 'YOUR_COLUMN1', 'YOUR_CHOSEN_NAME1', 'YOUR_DATA_FRAME', etc., to match your actual vertex names.
+# 2. Replace 'Value' with the actual column containing numeric data.
+# 3. Experiment with scale_fill_gradient2() or viridis palettes for different color schemes.
+# 4. Try geom_text adjustments (vjust/hjust/angle) for readability.
+# 5. Change position_dodge() width or remove it to see stacked bars.
