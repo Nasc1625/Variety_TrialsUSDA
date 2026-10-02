@@ -1,0 +1,319 @@
+################################################################################
+# STUDENT-FRIENDLY TEACHING SCRIPT FOR VARIETY TRIAL ANALYSIS
+# This version includes student notes so you can rebuild your own workflow.
+# Paste and run the entire cell in R / RStudio.
+################################################################################
+
+################################################################################
+# 1. LOAD LIBRARIES
+# Notes:
+# - tidyverse: for data manipulation and plotting
+# - car: Levene test for equality of variance
+# - outliers: Grubbs test for single outliers
+# - multcompView: converts TukeyHSD results to letter-based groups
+# - lubridate: makes handling dates easier
+################################################################################
+
+if(!requireNamespace("tidyverse", quietly = TRUE)) install.packages("tidyverse")
+if(!requireNamespace("car", quietly = TRUE)) install.packages("car")
+if(!requireNamespace("outliers", quietly = TRUE)) install.packages("outliers")
+if(!requireNamespace("multcompView", quietly = TRUE)) install.packages("multcompView")
+if(!requireNamespace("lubridate", quietly = TRUE)) install.packages("lubridate")
+
+library(tidyverse)
+library(car)
+library(outliers)
+library(multcompView)
+library(lubridate)
+
+################################################################################
+# 2. IMPORT DATA
+# Student note: Replace the path with your own CSV location.
+# StringsAsFactors = FALSE keeps text columns as characters (not factors).
+################################################################################
+df <- read.csv("/mnt/data/BEETS_ONLY - BEETS_ONLY (5).csv", stringsAsFactors = FALSE)
+
+################################################################################
+# 3. EXPLORE DATA
+# Student note:
+# - str() shows column names and types.
+# - head() shows first rows to spot obvious errors.
+################################################################################
+str(df)
+head(df, 10)
+
+################################################################################
+# 4. CLEAN COMMON BAD VALUES
+# Student note:
+# - Often, spreadsheets have "-", "n/a", empty cells, etc.
+# - Replace them with NA so R can handle them numerically.
+################################################################################
+bad_vals <- c("", "-", "n/a", "N/A", "NA", "na")
+df[df %in% bad_vals] <- NA
+
+################################################################################
+# 5. CONVERT COLUMNS TO NUMERIC
+# Student note:
+# - Sometimes numeric columns are read as character.
+# - Use as.numeric() carefully. Check colSums(is.na()) after conversion.
+################################################################################
+# Example for Marketable Units and Marketable Weight columns
+if("Number of Marketable Units" %in% names(df)) {
+  df$Marketable_Units <- as.numeric(df$`Number of Marketable Units`)
+} else if("Number.of.Marketable.Units" %in% names(df)) {
+  df$Marketable_Units <- as.numeric(df$Number.of.Marketable.Units)
+}
+
+if("Marketable Yield Weight (lbs.)" %in% names(df)) {
+  df$Marketable_Weight <- as.numeric(df$`Marketable Yield Weight (lbs.)`)
+} else if("Marketable_Yield_Weight_lbs" %in% names(df)) {
+  df$Marketable_Weight <- as.numeric(df$Marketable_Yield_Weight_lbs)
+}
+
+################################################################################
+# 6. CONVERT DATE / TIMESTAMP
+# Student note:
+# - Dates allow weekly or yearly aggregation.
+# - Use as.Date() for date only, or as.POSIXct() if time is included.
+################################################################################
+if("Timestamp" %in% names(df)) {
+  df$Date <- suppressWarnings(as.Date(df$Timestamp, format = "%m/%d/%y"))
+  if(all(is.na(df$Date))) {
+    df$Date <- suppressWarnings(as.POSIXct(df$Timestamp, format = "%m/%d/%y %H:%M"))
+  }
+}
+
+################################################################################
+# 7. BASIC DATA CHECKS
+# Student note:
+# - Missing values: colSums(is.na(df))
+# - Negative weights: look for impossible values before analysis.
+################################################################################
+print(colSums(is.na(df)))
+print(summary(select(df, where(is.numeric))))
+
+if("Marketable_Weight" %in% names(df)) {
+  bad_weight_rows <- df %>% filter(!is.na(Marketable_Weight) & Marketable_Weight < 0)
+  if(nrow(bad_weight_rows) > 0) {
+    print("Rows with negative Marketable_Weight (check raw data):")
+    print(bad_weight_rows)
+  }
+}
+
+################################################################################
+# 8. CHECK ANOVA ASSUMPTIONS
+# Student note:
+# - Normality (Shapiro-Wilk)
+# - Homogeneity of variance (Levene)
+# - Visual checks (histograms, QQ plots, boxplots)
+################################################################################
+group_var <- if("Cultivar" %in% names(df)) "Cultivar" else stop("Rename group column to 'Cultivar'.")
+
+# Histograms by cultivar
+if("Marketable_Weight" %in% names(df)) {
+  ggplot(df, aes(x = Marketable_Weight)) +
+    geom_histogram(bins = 20, color = "black", fill = "grey") +
+    facet_wrap(as.formula(paste("~", group_var)), scales = "free") +
+    theme_minimal() +
+    ggtitle("Histogram of Marketable Weight by Cultivar")
+}
+
+# QQ plots by cultivar
+if("Marketable_Weight" %in% names(df)) {
+  ggplot(df, aes(sample = Marketable_Weight)) +
+    stat_qq() +
+    stat_qq_line() +
+    facet_wrap(as.formula(paste("~", group_var)), scales = "free") +
+    theme_minimal() +
+    ggtitle("QQ Plots of Marketable Weight by Cultivar")
+}
+
+# Shapiro-Wilk normality test
+if("Marketable_Weight" %in% names(df)) {
+  normality_results <- df %>%
+    group_by_at(group_var) %>%
+    summarise(
+      n = sum(!is.na(Marketable_Weight)),
+      shapiro_p = ifelse(n >= 3, tryCatch(shapiro.test(Marketable_Weight)$p.value, error = function(e) NA), NA_real_)
+    ) %>%
+    arrange(shapiro_p)
+  print("Shapiro-Wilk normality test p-values per cultivar (p < 0.05 = possible non-normality):")
+  print(normality_results)
+}
+
+# Boxplots
+if("Marketable_Weight" %in% names(df)) {
+  ggplot(df, aes_string(x = group_var, y = "Marketable_Weight")) +
+    geom_boxplot() +
+    theme_minimal() +
+    ggtitle("Boxplot of Marketable Weight by Cultivar")
+}
+
+# Levene's test
+if("Marketable_Weight" %in% names(df)) {
+  levene_out <- tryCatch(leveneTest(Marketable_Weight ~ get(group_var), data = df), error = function(e) e)
+  print("Levene's test for equality of variance (p > 0.05 = variances similar):")
+  print(levene_out)
+}
+
+################################################################################
+# 9. GRUBBS TEST FOR OUTLIERS
+# Student note:
+# - Detects one extreme value per group.
+# - Investigate flagged points before removing.
+################################################################################
+if("Marketable_Weight" %in% names(df)) {
+  grubbs_by_group <- df %>%
+    group_by_at(group_var) %>%
+    summarise(
+      n = sum(!is.na(Marketable_Weight)),
+      grubbs_p = ifelse(n >= 3, tryCatch(outliers::grubbs.test(Marketable_Weight)$p.value, error = function(e) NA), NA_real_)
+    ) %>% arrange(grubbs_p)
+  print("Grubbs test p-values by cultivar (p < 0.05 = potential outlier):")
+  print(grubbs_by_group)
+}
+
+################################################################################
+# 10. ANOVA
+# Student note:
+# - Only run if assumptions are reasonably met.
+# - Consider transformation or non-parametric test if assumptions fail.
+################################################################################
+if("Marketable_Weight" %in% names(df)) {
+  anova_model <- tryCatch(aov(Marketable_Weight ~ get(group_var), data = df), error = function(e) e)
+  print("ANOVA summary:")
+  print(summary(anova_model))
+}
+
+################################################################################
+# 11. POST-HOC TUKEY HSD
+# Student note:
+# - Only run if ANOVA is valid and significant.
+# - Pairwise comparisons tell which cultivars differ.
+################################################################################
+if(exists("anova_model") && inherits(anova_model, "aov")) {
+  tukey_results <- tryCatch(TukeyHSD(anova_model), error = function(e) e)
+  print("Tukey HSD results:")
+  print(tukey_results)
+} else {
+  tukey_results <- NULL
+}
+
+################################################################################
+# 12. COMPACT LETTER DISPLAY
+# Student note:
+# - Converts Tukey p-values into letter groups.
+# - Same letter = not significantly different.
+################################################################################
+if(!is.null(tukey_results)) {
+  tukey_table <- TukeyHSD(anova_model)[[1]]
+  letters_obj <- multcompLetters(tukey_table[, "p adj"])
+  letters_df <- data.frame(Cultivar = names(letters_obj$Letters), Group = letters_obj$Letters, stringsAsFactors = FALSE)
+} else {
+  letters_df <- data.frame()
+}
+
+################################################################################
+# 13. SUMMARY TABLE (means, SE, n, Tukey letters)
+# Student note:
+# - Summarizes results in a table for reporting or plotting.
+################################################################################
+if("Marketable_Weight" %in% names(df)) {
+  mean_se_table <- df %>%
+    group_by_at(group_var) %>%
+    summarise(
+      n = sum(!is.na(Marketable_Weight)),
+      mean = mean(Marketable_Weight, na.rm = TRUE),
+      sd = sd(Marketable_Weight, na.rm = TRUE),
+      se = ifelse(n > 0, sd / sqrt(n), NA_real_)
+    ) %>% ungroup() %>%
+    rename(Cultivar = !!sym(group_var))
+  
+  if(nrow(letters_df) > 0) mean_se_table <- left_join(mean_se_table, letters_df, by = "Cultivar")
+  print("Summary table (mean ± SE, Tukey letters):")
+  print(mean_se_table)
+}
+
+################################################################################
+# 14. PLOT MEANS + ERROR BARS + LETTER GROUPS
+# Student note:
+# - Visualize differences clearly.
+# - Letters above points show which groups are different.
+################################################################################
+if(exists("mean_se_table") && nrow(mean_se_table) > 0) {
+  ggplot(mean_se_table, aes(x = reorder(Cultivar, -mean), y = mean)) +
+    geom_point(size = 3) +
+    geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) +
+    geom_text(aes(label = Group, y = mean + se + 0.01 * max(mean, na.rm = TRUE)), size = 4) +
+    theme_minimal() +
+    xlab("Cultivar") +
+    ylab("Mean Marketable Weight") +
+    ggtitle("Mean Marketable Weight ± SE (Tukey letters)")
+}
+
+################################################################################
+# 15. MULTI-YEAR AND IN-SEASON TRENDS
+# Student note:
+# - Requires Date column.
+# - Year: aggregate by season, Week: track growth trends.
+################################################################################
+if(!"Year" %in% names(df) && "Date" %in% names(df)) df$Year <- year(df$Date)
+
+if("Year" %in% names(df) && "Marketable_Weight" %in% names(df)) {
+  year_summary <- df %>%
+    group_by_at(c(group_var, "Year")) %>%
+    summarise(
+      n = sum(!is.na(Marketable_Weight)),
+      mean = mean(Marketable_Weight, na.rm = TRUE),
+      sd = sd(Marketable_Weight, na.rm = TRUE),
+      se = ifelse(n > 0, sd / sqrt(n), NA_real_)
+    ) %>% ungroup()
+  
+  print("Yearly summary (mean ± SE) by cultivar:")
+  print(year_summary)
+  
+  ggplot(year_summary, aes(x = Year, y = mean, color = Cultivar, group = Cultivar)) +
+    geom_line() +
+    geom_point(size = 2) +
+    geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.1) +
+    theme_minimal() +
+    ylab("Mean Marketable Weight") +
+    ggtitle("Mean Marketable Weight Over Years")
+}
+
+# Weekly trends
+if("Date" %in% names(df) && "Marketable_Weight" %in% names(df)) {
+  df <- df %>% mutate(Week = floor_date(as.Date(Date), "week"))
+  week_summary <- df %>%
+    group_by_at(c(group_var, "Week")) %>%
+    summarise(
+      n = sum(!is.na(Marketable_Weight)),
+      mean = mean(Marketable_Weight, na.rm = TRUE),
+      sd = sd(Marketable_Weight, na.rm = TRUE),
+      se = ifelse(n > 0, sd / sqrt(n), NA_real_)
+    ) %>% ungroup()
+  
+  print("Weekly summary (mean ± SE) by cultivar:")
+  print(week_summary)
+  
+  ggplot(week_summary, aes(x = Week, y = mean, color = Cultivar, group = Cultivar)) +
+    geom_line() +
+    geom_point() +
+    geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) +
+    theme_minimal() +
+    ylab("Mean Marketable Weight") +
+    ggtitle("Weekly Marketable Weight Over Season")
+}
+
+################################################################################
+# 16. STUDENT NOTES SUMMARY
+# - Always inspect data before analysis (str, head, summary)
+# - Replace bad values with NA and convert numerics
+# - Check assumptions before ANOVA
+# - Use visual + statistical tests for normality and variance
+# - Investigate outliers carefully before removal
+# - Use ANOVA + Tukey if assumptions met
+# - Compact letters = easy interpretation of post-hoc results
+# - Multi-year / weekly trends: optional, useful for temporal patterns
+# - Always re-run entire workflow after correcting data
+################################################################################

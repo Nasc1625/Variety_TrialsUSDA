@@ -1,0 +1,73 @@
+################################################################################
+# STUDENT SCRIPT: FIX CHARACTER → NUMERIC & PLOT TOMATO MARKETABLE UNITS
+# No replicates assumed; summary by grouping variable.
+################################################################################
+
+# 1. LOAD LIBRARIES
+library(dplyr)    # data manipulation
+library(ggplot2)  # plotting
+
+# 2. LOAD DATA
+# CHANGE HERE: Replace "Tomatoes_Data.csv" with your CSV file
+data <- read.csv("Tomatoes_Data.csv", stringsAsFactors = FALSE)
+
+# 3. CHECK COLUMN TYPE
+# CHANGE HERE: Replace "Tomatoes.Marketable.Units" with your column
+str(data$Tomatoes.Marketable.Units)
+unique(data$Tomatoes.Marketable.Units)
+
+# 4. CLEAN NON-NUMERIC ENTRIES
+bad_vals <- c("", "-", "n/a", "N/A", "NA", "na")
+data$Tomatoes.Marketable.Units[data$Tomatoes.Marketable.Units %in% bad_vals] <- NA
+
+# 5. CONVERT TO NUMERIC
+data$Tomatoes.Marketable.Units <- as.numeric(data$Tomatoes.Marketable.Units)
+
+# 6. CONFIRM CONVERSION
+str(data$Tomatoes.Marketable.Units)
+summary(data$Tomatoes.Marketable.Units)
+
+# 7. GROUP BY YOUR VARIABLE
+# CHANGE HERE: Replace "Variety" with the column you want to group by
+summary_stats <- data %>%
+  group_by(Variety) %>%  # CHANGE column name
+  summarise(
+    mean_units = mean(Tomatoes.Marketable.Units, na.rm = TRUE),
+    se_units   = sd(Tomatoes.Marketable.Units, na.rm = TRUE) / sqrt(n())
+  )
+
+print(summary_stats)
+
+# 8. BAR PLOT WITH ERROR BARS
+ggplot(summary_stats, aes(x = Variety, y = mean_units, fill = Variety)) +  # CHANGE x if needed
+  geom_col(color = "black") +
+  geom_errorbar(aes(ymin = mean_units - se_units, ymax = mean_units + se_units), width = 0.2) +
+  theme_minimal() +
+  labs(title = "Bar Plot: Tomato Marketable Units",
+       y = "Mean Units",
+       x = "Variety")  # CHANGE x-axis label if needed
+
+# 9. BOX PLOT
+ggplot(data, aes(x = Variety, y = Tomatoes.Marketable.Units, fill = Variety)) +  # CHANGE column names
+  geom_boxplot(alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Box Plot: Tomato Marketable Units",
+       y = "Units",
+       x = "Variety")  # CHANGE x-axis label
+
+# 10. DOT PLOT (MEAN ± SE)
+ggplot(summary_stats, aes(x = Variety, y = mean_units)) +  # CHANGE x if needed
+  geom_point(size = 3, color = "orange") +
+  geom_errorbar(aes(ymin = mean_units - se_units, ymax = mean_units + se_units), width = 0.2, color = "steelblue") +
+  theme_minimal() +
+  labs(title = "Dot Plot: Tomato Marketable Units",
+       y = "Mean Units",
+       x = "Variety")  # CHANGE x-axis label
+
+# STUDENT NOTES:
+# - Steps 4-5: Clean non-numeric values and convert column to numeric
+# - Step 7: group_by() lets you summarize by your variable of interest
+# - Steps 8-10: Plots now show summaries per group
+# - Replace column names and CSV filename wherever marked "CHANGE HERE"
+################################################################################
+

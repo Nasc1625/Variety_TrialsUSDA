@@ -1,0 +1,140 @@
+################################################################################
+# COMPLETE VARIETY TRIAL ANALYSIS TEMPLATE WITH STUDENT NOTES
+# Hierarchy: Crop -> Plot -> Variety -> Rep (A,B,C)
+# Response: Marketable weight (lbs)
+# Includes weekly trend and mixed model
+################################################################################
+
+# 1. LOAD LIBRARIES
+if(!requireNamespace("lme4", quietly = TRUE)) install.packages("lme4") # Mixed models
+if(!requireNamespace("emmeans", quietly = TRUE)) install.packages("emmeans") # Estimated marginal means
+if(!requireNamespace("tidyverse", quietly = TRUE)) install.packages("tidyverse") # Data manipulation & plotting
+if(!requireNamespace("lubridate", quietly = TRUE)) install.packages("lubridate") # Date handling
+
+library(lme4)       # load lme4 for mixed models
+library(emmeans)    # load emmeans for predicted means / post-hoc
+library(tidyverse)  # load tidyverse (dplyr, ggplot2)
+library(lubridate)  # load lubridate for date operations
+
+################################################################################
+# 2. IMPORT DATA
+# CHANGE: Replace with your CSV path
+################################################################################
+df <- read.csv("YOUR_CSV_FILE.csv", stringsAsFactors = FALSE) # read CSV as dataframe
+
+################################################################################
+# 3. CLEAN DATA
+# CHANGE: replace column names to match your dataset
+################################################################################
+bad_vals <- c("", "-", "n/a", "N/A", "NA", "na") # common placeholders for missing
+df[df %in% bad_vals] <- NA # convert bad values to NA
+
+# Convert response to numeric
+# CHANGE: Replace RESPONSE_COLUMN with your marketable weight column
+df$RESPONSE_COLUMN <- as.numeric(df$RESPONSE_COLUMN) # numeric conversion
+
+# Convert hierarchy variables to factors
+# CHANGE: Replace column names
+df$CROP_COLUMN <- factor(df$CROP_COLUMN) # Crop as factor
+df$PLOT_COLUMN <- factor(df$PLOT_COLUMN) # Plot as factor
+df$VARIETY_COLUMN <- factor(df$VARIETY_COLUMN) # Variety as factor
+df$REP_COLUMN <- factor(df$REP_COLUMN) # Replicate A/B/C as factor
+
+# Convert Date column if available for weekly trend
+# CHANGE: Replace DATE_COLUMN with your date column name
+if("DATE_COLUMN" %in% names(df)) { # only if column exists
+  df$Date <- as.Date(df$DATE_COLUMN, format = "%m/%d/%y") # convert to Date
+  df$Week <- floor_date(df$Date, "week") # create week bins
+}
+
+################################################################################
+# 4. BASIC CHECKS
+################################################################################
+print(colSums(is.na(df))) # check missing values per column
+summary(df$RESPONSE_COLUMN) # summary statistics for response
+
+# Check for negative values
+bad_rows <- df %>% filter(!is.na(RESPONSE_COLUMN) & RESPONSE_COLUMN < 0) # find negatives
+if(nrow(bad_rows) > 0) print(bad_rows) # print rows with errors
+
+################################################################################
+# 5. MIXED MODEL
+# CHANGE hierarchy columns as needed
+################################################################################
+# Model without trend
+model <- lmer(RESPONSE_COLUMN ~ VARIETY_COLUMN + CROP_COLUMN + (1 | PLOT_COLUMN/REP_COLUMN), data = df) # mixed model
+summary(model) # summary output
+
+# Optional: Model with weekly trend if Date available
+if("Week" %in% names(df)) { # only run if week exists
+  model_trend <- lmer(RESPONSE_COLUMN ~ VARIETY_COLUMN + CROP_COLUMN + Week + (Week | PLOT_COLUMN) + (1 | REP_COLUMN), data = df) # slope per plot over week
+  summary(model_trend) # summary output
+}
+
+################################################################################
+# 6. DIAGNOSTICS
+################################################################################
+par(mfrow = c(1,2)) # 2 plots side by side
+plot(resid(model), main = "Residuals vs Fitted (no trend)") # residuals plot
+qqnorm(resid(model)); qqline(resid(model)) # QQ plot for normality
+
+if(exists("model_trend")) { # diagnostics for trend model
+  plot(resid(model_trend), main = "Residuals vs Fitted (trend)")
+  qqnorm(resid(model_trend)); qqline(resid(model_trend))
+}
+
+################################################################################
+# 7. ESTIMATED MEANS
+################################################################################
+emm <- emmeans(model, ~ VARIETY_COLUMN) # predicted means per variety
+summary(emm) # print results
+pairs(emm)  # pairwise comparisons
+
+if(exists("model_trend")) { # weekly trend predicted means
+  emm_trend <- emmeans(model_trend, ~ VARIETY_COLUMN | Week) # mean per week per variety
+  summary(emm_trend)
+}
+
+################################################################################
+# 8. WEEKLY SUMMARY FOR PLOTTING
+################################################################################
+if("Week" %in% names(df)) { # only run if weekly info exists
+  week_summary <- df %>%
+    group_by(VARIETY_COLUMN, Week) %>% # group by variety & week
+    summarise(
+      n = sum(!is.na(RESPONSE_COLUMN)), # number of observations
+      mean = mean(RESPONSE_COLUMN, na.rm = TRUE), # mean response
+      sd = sd(RESPONSE_COLUMN, na.rm = TRUE), # standard deviation
+      se = ifelse(n > 0, sd / sqrt(n), NA_real_) # standard error
+    ) %>%
+    ungroup()
+  
+  print("Weekly summary table:")
+  print(week_summary) # see weekly means, SEs
+  
+  # Plot weekly trend
+  ggplot(week_summary, aes(x = Week, y = mean, color = VARIETY_COLUMN, group = VARIETY_COLUMN)) +
+    geom_line(size = 1) + # line connecting weekly means
+    geom_point(size = 2) + # points at weekly means
+    geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.1) + # SE bars
+    theme_minimal() + # clean theme
+    xlab("Week") + # x-axis label
+    ylab("Mean RESPONSE_COLUMN (lbs)") + # y-axis label
+    ggtitle("Weekly Trend of RESPONSE_COLUMN by VARIETY_COLUMN") + # plot title
+    theme(
+      legend.title = element_blank(), # remove legend title
+      axis.text.x = element_text(angle = 45, hjust = 1) # rotate week labels
+    )
+}
+
+################################################################################
+# 9. STUDENT NOTES
+################################################################################
+# - Fill in file path and column names: RESPONSE_COLUMN, CROP_COLUMN, PLOT_COLUMN, VARIETY_COLUMN, REP_COLUMN, DATE_COLUMN
+# - Rep can be factors like A/B/C
+# - Random effects control for plot and replicate variability
+# - Weekly trend shows growth over season
+# - emmeans used for predicted means and post-hoc comparisons
+# - Check residuals for normality and variance assumptions
+# - All lines have comments to guide student understanding
+################################################################################
