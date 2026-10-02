@@ -1,0 +1,61 @@
+# --- Load packages ---
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+# --- Load your dataset (replace with actual filename if needed) ---
+
+data <- Aggrivoltaic.updated...1
+
+# --- Prepare control data ---
+
+control <- data$Control.Potatoes.Marketable.Weight
+control_mean <- mean(control, na.rm = TRUE)
+
+# --- Reshape replicates into long format ---
+
+potatoes_long <- data %>%
+  select(Rep1.Potatoes.Marketable.Weight, Rep2.Potatoes.Marketable.Weight, Rep3.Potatoes.Marketable.Weight) %>%
+  pivot_longer(cols = everything(), names_to = "Replicate", values_to = "Weight") %>%
+  mutate(Replicate = recode(Replicate,
+                            "Rep1.Potatoes.Marketable.Weight" = "Rep 1", # the , "" insde tells us what to name vlue when plotting 
+                            "Rep2.Potatoes.Marketable.Weight" = "Rep 2",
+                            "Rep3.Potatoes.Marketable.Weight" = "Rep 3"))
+
+# --- Calculate summary statistics (mean ± SE) ---
+
+summary_stats <- potatoes_long %>%
+  group_by(Replicate) %>%
+  summarise(mean = mean(Weight, na.rm = TRUE),
+            se = sd(Weight, na.rm = TRUE) / sqrt(n()))
+
+# --- Bar Plot: mean ± SE (control mean in red dashed line) ---
+
+ggplot(summary_stats, aes(x = Replicate, y = mean, fill = Replicate)) +
+  geom_col(color = "black") +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) + #set error bar
+  geom_hline(yintercept = control_mean, linetype = "dashed", color = "red") + #sets control dashed line
+  theme_minimal() +
+  labs(title = "Bar Plot: Potato Replicates vs Control",
+       y = "Mean Marketable Weight",
+       x = "Replicate")
+
+# --- Box Plot: replicates + control for visual comparison ---
+
+control_df <- data.frame(Replicate = "Control", Weight = control)
+combined <- bind_rows(potatoes_long, control_df)
+
+ggplot(combined, aes(Replicate, Weight, fill = Replicate)) +
+  geom_boxplot(alpha = 0.7) + #assumes box plot
+  theme_minimal() +
+  labs(title = "Box Plot: Replicates vs Control", y = "Weight")
+
+# --- Dot Plot: mean ± SE (control mean in red dashed line) ---
+
+ggplot(summary_stats, aes(Replicate, mean)) +
+  geom_point(size = 3, color = "orange") + #assumes dot plot
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2, color = "steelblue") +
+  geom_hline(yintercept = control_mean, linetype = "dashed", color = "red") +
+  theme_minimal() +
+  labs(title = "Dot Plot: Replicates vs Control", y = "Mean Weight")

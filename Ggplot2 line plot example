@@ -1,0 +1,29 @@
+# --- Line Plot: Each replicate across rows ---
+
+# Add row index as x-axis 
+
+data$row <- 1:nrow(data) #sequencing the integers in the row column
+
+# Reshape replicate columns for plotting
+
+potatoes_line <- data %>%
+  select(row,
+         Rep1.Potatoes.Marketable.Weight,
+         Rep2.Potatoes.Marketable.Weight,
+         Rep3.Potatoes.Marketable.Weight) %>%
+  pivot_longer(cols = -row, names_to = "Replicate", values_to = "Weight") %>%
+  mutate(Replicate = recode(Replicate,
+                            "Rep1.Potatoes.Marketable.Weight" = "Rep 1",
+                            "Rep2.Potatoes.Marketable.Weight" = "Rep 2",
+                            "Rep3.Potatoes.Marketable.Weight" = "Rep 3"))
+
+# --- Line plot with key showing each replicate ---
+
+ggplot(potatoes_line, aes(x = row, y = Weight, color = Replicate, group = Replicate)) +
+  geom_line(linewidth = 1) + #adds in lines between points
+  geom_point(size = 2) +
+  theme_minimal() +
+  labs(title = "Line Plot: Potatoes Weight by Row",
+       x = "Row Index",
+       y = "Marketable Weight",
+       color = "Replicate") #auto generating key
