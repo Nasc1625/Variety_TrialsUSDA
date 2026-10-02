@@ -1,0 +1,79 @@
+# --- Mixed Models + Regression Lines: Crop Variety Trials ---
+
+# Purpose:
+# This script demonstrates how to:
+# 1. Analyze crop yield across plots and replicates using mixed models
+# 2. Visualize predicted means (BLUPs)
+# 3. Explore trends using regression lines (linear and loess)
+
+# Hierarchy:
+# Crop        = fixed effect (main factor of interest)
+# Plot        = random effect (plots within crop)
+# Replicate   = random effect (subplots or repeated measurements)
+# Response    = trait measured (Yield, Weight, etc.)
+
+# Load packages
+library(lme4)      # for mixed models
+library(lmerTest)  # adds p-values
+library(emmeans)   # predicted means (BLUPs)
+library(ggplot2)   # visualization
+
+# Example dataset
+data <- data.frame(
+  Crop      = factor(rep(c("C1","C2"), each = 6)),
+  Plot      = factor(rep(c("Plot1","Plot2","Plot3"), times = 2)),
+  Replicate = factor(rep(c("a","b","c"), times = 4)),
+  Yield     = c(10,11,9,15,14,16,12,13,11,18,17,19)
+)
+
+# --- Step 1: Fit mixed model ---
+# Fixed effect: Crop
+# Random effects: Plot, Replicate
+model <- lmer(Yield ~ Crop + (1|Plot) + (1|Replicate), data = data)
+
+# Step 2: Check model summary
+summary(model)
+# Outputs:
+# - Fixed effect estimates (Crop differences)
+# - Random effect variance (Plot, Replicate)
+# - Residual variance
+
+# Step 3: Extract predicted means (BLUPs) for each Crop
+crop_means <- emmeans(model, ~ Crop)
+crop_df <- as.data.frame(crop_means)
+
+# Step 4: Visualize BLUPs
+ggplot(crop_df, aes(x = Crop, y = emmean)) +
+  geom_col(fill = "forestgreen") +
+  geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.2) +
+  theme_minimal() +
+  labs(title = "Predicted Crop Means (BLUPs)", y = "Yield", x = "Crop")
+
+# --- Step 5: Regression Lines in ggplot ---
+# Explore relationship between Yield and a numeric variable (e.g., SoilN)
+# Linear regression (lm): straight line
+# Local regression (loess): flexible smooth curve
+
+# Example with a numeric variable added
+data$SoilN <- c(10,12,11,14,13,15,11,13,12,16,15,17)
+
+# Linear regression line
+ggplot(data, aes(x = SoilN, y = Yield, color = Crop)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = TRUE) +   # linear regression
+  theme_minimal() +
+  labs(title = "Yield vs Soil Nitrogen: Linear Regression (lm)", y = "Yield", x = "Soil N (ppm)")
+
+# Local regression line
+ggplot(data, aes(x = SoilN, y = Yield, color = Crop)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "loess", se = TRUE) +  # loess (local regression)
+  theme_minimal() +
+  labs(title = "Yield vs Soil Nitrogen: Local Regression (loess)", y = "Yield", x = "Soil N (ppm)")
+
+# Notes:
+# - Mixed models adjust for random effects (Plot, Replicate)
+# - BLUPs provide adjusted crop means
+# - lm shows overall linear trend
+# - loess shows local/non-linear trends
+# - Use color/group in ggplot to separate lines by Crop or other factor

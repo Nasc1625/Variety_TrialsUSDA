@@ -1,0 +1,73 @@
+# --- Load packages ---
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+# --- Load your dataset ---
+
+data <- Aggrivoltaic.updated...1
+
+# --- Prepare control data ---
+
+control <- data$Control.Potatoes.Marketable.Weight
+control_mean <- mean(control, na.rm = TRUE)
+
+# --- Reshape replicates into long format ---
+
+potatoes_long <- data %>%
+  select(Rep1.Potatoes.Marketable.Weight, Rep2.Potatoes.Marketable.Weight, Rep3.Potatoes.Marketable.Weight) %>%
+  pivot_longer(cols = everything(), names_to = "Replicate", values_to = "Weight") %>%
+  mutate(Replicate = recode(Replicate,
+                            "Rep1.Potatoes.Marketable.Weight" = "Rep 1",
+                            "Rep2.Potatoes.Marketable.Weight" = "Rep 2",
+                            "Rep3.Potatoes.Marketable.Weight" = "Rep 3"))
+
+# --- Calculate summary statistics (mean ± SE) ---
+
+summary_stats <- potatoes_long %>%
+  group_by(Replicate) %>%
+  summarise(mean = mean(Weight, na.rm = TRUE),
+            se = sd(Weight, na.rm = TRUE) / sqrt(n()))
+
+# --- Bar Plot: mean ± SE (control mean in red dashed line) ---
+
+ggplot(summary_stats, aes(x = Replicate, y = mean, fill = Replicate)) +
+  
+  # NOTE: Add a bar plot layer (geom_col or geom_bar)
+  
+  # NOTE: Add error bars (geom_errorbar) using mean ± SE
+  
+  # NOTE: Add a horizontal line for control mean (geom_hline)
+  
+  theme_minimal() +
+  labs(title = "Bar Plot: Potato Replicates vs Control",
+       y = "Mean Marketable Weight",
+       x = "Replicate")
+
+# --- Box Plot: replicates + control for visual comparison ---
+
+control_df <- data.frame(Replicate = "Control", Weight = control)
+combined <- bind_rows(potatoes_long, control_df)
+
+ggplot(combined, aes(Replicate, Weight, fill = Replicate)) +
+  
+  # NOTE: Add a box plot layer (geom_boxplot)
+  
+  # NOTE: Optional: adjust transparency with alpha for better visibility
+  
+  theme_minimal() +
+  labs(title = "Box Plot: Replicates vs Control", y = "Weight")
+
+# --- Dot Plot: mean ± SE (control mean in red dashed line) ---
+
+ggplot(summary_stats, aes(Replicate, mean)) +
+  
+  # NOTE: Add points for means (geom_point)
+  
+  # NOTE: Add error bars (geom_errorbar) using mean ± SE
+  
+  # NOTE: Add a horizontal line for control mean (geom_hline)
+  
+  theme_minimal() +
+  labs(title = "Dot Plot: Replicates vs Control", y = "Mean Weight")

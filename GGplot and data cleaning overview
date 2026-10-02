@@ -1,0 +1,175 @@
+# R Plotting & Data Handling – Full Notes w/ Script Writing Instructions
+
+------------------------------------------------------------
+1. PACKAGES
+------------------------------------------------------------
+library(ggplot2)
+    • Used for all plots (bar, box, dot, line).
+    • Think: “layers” of geoms stacked on top of each other.
+
+library(tidyr)
+    • pivot_longer() = reshape wide → long.
+
+library(dplyr)
+    • select(), mutate(), group_by(), summarise() handle data cleaning.
+
+------------------------------------------------------------
+2. LOADING + ACCESSING DATA
+------------------------------------------------------------
+data <- Aggrivoltaic.updated...1
+    • Always assign your dataset to an object.
+
+control <- data$Control.Potatoes.Marketable.Weight
+    • Use $ to pull a single column. Assign as control
+
+control_mean <- mean(control, na.rm = TRUE)
+    • na.rm = TRUE ignores missing values.
+    • This mean becomes a reference line in several plots.
+
+------------------------------------------------------------
+3. RESHAPING REPLICATES (WIDE → LONG)
+------------------------------------------------------------
+potatoes_long <- data %>%
+    select(Rep1.Potatoes.Marketable.Weight,
+           Rep2.Potatoes.Marketable.Weight,
+           Rep3.Potatoes.Marketable.Weight) %>%
+    pivot_longer(cols = everything(),
+                 names_to = "Replicate",
+                 values_to = "Weight") %>%
+    mutate(Replicate = recode(Replicate,
+        "Rep1.Potatoes.Marketable.Weight" = "Rep 1",
+        "Rep2.Potatoes.Marketable.Weight" = "Rep 2",
+        "Rep3.Potatoes.Marketable.Weight" = "Rep 3"))
+
+NOTES:
+• select(): pick only the replicate columns.  
+• pivot_longer(): required when you want one column for the group name
+  and one column for the numeric values.  
+• recode(): cleans long messy names into labels that look good on plots.
+• mutate() creates new columns or modifies existing columns in a data frame.
+It works row by row, unless you combine it with group_by().
+You can create multiple columns at once.
+
+------------------------------------------------------------
+4. SUMMARY STATISTICS (MEAN ± SE)
+------------------------------------------------------------
+summary_stats <- potatoes_long %>%
+    group_by(Replicate) %>%
+    summarise(mean = mean(Weight, na.rm = TRUE),
+              se = sd(Weight, na.rm = TRUE) / sqrt(n()))
+
+NOTES:
+• group_by() ensures stats get computed per replicate.  
+• SE = SD / sqrt(n) provides uncertainty around the mean.
+
+------------------------------------------------------------
+5. BAR PLOT (MEAN ± SE + CONTROL LINE)
+------------------------------------------------------------
+### HOW TO WRITE THIS PLOT SCRIPT
+1. Start ggplot() with data + aes() for x and y.
+2. Add geom_col() for bars.
+3. Add geom_errorbar() to show SE.
+4. Add geom_hline() for the control comparison.
+5. Add labels + theme.
+
+### CODE
+ggplot(summary_stats, aes(x = Replicate, y = mean, fill = Replicate)) +
+    geom_col(color = "black") +
+    geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) +
+    geom_hline(yintercept = control_mean, linetype = "dashed", color = "red") +
+    theme_minimal() +
+    labs(title = "Bar Plot: Potato Replicates vs Control",
+         y = "Mean Marketable Weight",
+         x = "Replicate")
+
+------------------------------------------------------------
+6. BOX PLOT (DISTRIBUTIONS + CONTROL)
+------------------------------------------------------------
+### HOW TO WRITE THIS PLOT SCRIPT
+1. Combine replicate data with control into one dataframe.  
+2. Put both into ggplot() using aes(Replicate, Weight).  
+3. Use geom_boxplot().  
+4. Adjust alpha to make boxes transparent enough to compare.
+
+### CODE
+control_df <- data.frame(Replicate = "Control", Weight = control)
+combined <- bind_rows(potatoes_long, control_df)
+
+ggplot(combined, aes(Replicate, Weight, fill = Replicate)) +
+    geom_boxplot(alpha = 0.7) +
+    theme_minimal() +
+    labs(title = "Box Plot: Replicates vs Control",
+         y = "Weight")
+
+------------------------------------------------------------
+7. DOT PLOT (MEAN ± SE + CONTROL LINE)
+------------------------------------------------------------
+### HOW TO WRITE THIS PLOT SCRIPT
+1. Use summary_stats again.  
+2. geom_point() for means.  
+3. geom_errorbar() again for SE.  
+4. Horizontal dashed reference line = control_mean.  
+
+### CODE
+ggplot(summary_stats, aes(Replicate, mean)) +
+    geom_point(size = 3, color = "orange") +
+    geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                  width = 0.2,
+                  color = "steelblue") +
+    geom_hline(yintercept = control_mean, linetype = "dashed", color = "red") +
+    theme_minimal() +
+    labs(title = "Dot Plot: Replicates vs Control",
+         y = "Mean Weight")
+
+------------------------------------------------------------
+8. LINE PLOT (REPLICATE VALUES ACROSS ROWS)
+------------------------------------------------------------
+### HOW TO WRITE THIS PLOT SCRIPT
+1. data$row <- 1:nrow(data) -> creates a brand-new column in your dataset called row and fills it with the numbers 1, 2, 3, ..., up to the number of rows in the dataset.
+2. Reshape again (wide → long) but keep the row column. -> We take the three replicate columns (Rep1, Rep2, Rep3), which are in wide format, and turn them into long format while keeping the row numbers we created earlier.
+3. Map:
+   x = row
+   y = Weight
+   color = Replicate
+4. Add geom_line() and geom_point() for readability.
+
+### CODE
+data$row <- 1:nrow(data)
+
+potatoes_line <- data %>%
+    select(row,
+           Rep1.Potatoes.Marketable.Weight,
+           Rep2.Potatoes.Marketable.Weight,
+           Rep3.Potatoes.Marketable.Weight) %>%
+    pivot_longer(cols = -row,
+                 names_to = "Replicate",
+                 values_to = "Weight") %>%
+    mutate(Replicate = recode(Replicate,
+        "Rep1.Potatoes.Marketable.Weight" = "Rep 1",
+        "Rep2.Potatoes.Marketable.Weight" = "Rep 2",
+        "Rep3.Potatoes.Marketable.Weight" = "Rep 3"))
+
+ggplot(potatoes_line, aes(x = row, y = Weight, color = Replicate, group = Replicate)) +
+    geom_line(linewidth = 1) +
+    geom_point(size = 2) +
+    theme_minimal() +
+    labs(title = "Line Plot: Potatoes Weight by Row",
+         x = "Row Index",
+         y = "Marketable Weight",
+         color = "Replicate")
+
+------------------------------------------------------------
+9. TAKEAWAY SKILLS FROM THESE SCRIPTS
+------------------------------------------------------------
+• How to reshape data into long format for plotting.  
+• How to compute group-level means and standard errors.  
+• How to build:
+    – Bar plots (summary emphasis)
+    – Box plots (distribution emphasis)
+    – Dot plots (mean-only emphasis)
+    – Line plots (pattern/trend emphasis)
+• How to add reference lines to compare against control.  
+• How to map aesthetics (x, y, fill, color, group).  
+• How themes, labels, and legends get added.
+• Keeping Data in columns improves ability for plotting
+• The %>% operator is the pipe from the tidyverse. Think of it as “and then…”

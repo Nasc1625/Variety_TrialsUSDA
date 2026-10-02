@@ -1,0 +1,44 @@
+# --- Normalizing Control to Replicates: Notes and Math ---
+
+# Purpose:
+# Sometimes the control needs to be adjusted to match the scale of the replicates.
+# This ensures comparisons (ratios, plots) are meaningful and minimizes bias from differing magnitudes.
+
+# Notation:
+# R_i       = value of replicate i
+# n         = number of replicates
+# C         = original control value
+# mean_R    = mean of replicates
+# ratio_i   = replicate-to-control ratio
+# new_C_i   = normalized control for replicate i
+# scale_i   = scaling factor for control
+# adjusted_ratio_i = final ratio using normalized control
+
+# Step 1: Calculate mean of replicates
+mean_R <- sum(R_i) / n
+# mean_R = (R_1 + R_2 + ... + R_n) / n
+
+# Step 2: Calculate initial ratio of replicates to control
+ratio_i <- R_i / C
+# ratio_i = R_i / C
+
+# Step 3: Define normalized control for each replicate
+# Often done as a multiple of replicate (e.g., 2:1 ratio)
+new_C_i <- 2 * R_i
+# This sets the control relative to each replicate
+# new_C_i = 2 * R_i
+
+# Step 4: Determine scaling factor for control
+scale_i <- C / new_C_i
+# scale_i = C / (2 * R_i)
+# This tells us how much to adjust the control to match replicate scale
+
+# Step 5: Apply scaling factor to ratio
+adjusted_ratio_i <- ratio_i * scale_i
+# adjusted_ratio_i = (R_i / C) * (C / (2 * R_i)) = R_i / (2 * R_i) simplified
+# adjusted_ratio_i = 0.5 (for 2:1 scaling), or more generally mean_R / (2 * R_i)
+# Now the ratio accounts for normalized control
+
+# Step 6: Interpretation
+# The adjusted ratio allows fair comparison of replicates to a normalized control.
+# This method can be applied to any dataset where the control needs scaling to replicate values.
