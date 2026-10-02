@@ -1,0 +1,20 @@
+#set up
+data <- Aggrivoltaic.updated...1
+x <- Aggrivoltaic.updated...1$Row.Number
+y <- Aggrivoltaic.updated...1$Rep1.Potatoes.Marketable.Weight
+mean(Aggrivoltaic.updated...1$Rep1.Potatoes.Marketable.Weight)
+sd(Aggrivoltaic.updated...1$Rep1.Potatoes.Marketable.Weight)
+#Welches T-Test
+t.test(Aggrivoltaic.updated...1$Rep1.Potatoes.Marketable.Weight,Aggrivoltaic.updated...1$Control.Potatoes.Marketable.Weight)
+#One-sample t.test
+t.test(Aggrivoltaic.updated...1$Rep1.Potatoes.Marketable.Weight)
+#CV
+cv <- function(b) {(sd(b) / mean(b)) *100}
+cv(Aggrivoltaic.updated...1$Rep1.Potatoes.Marketable.Weight)
+#Linear regression Model
+model <- lm(y ~ x)
+summary(model)
+#plot
+plot(x,y)
+abline(model)
+#https://github.com/Nasc1625-ui/Variety-Trials
